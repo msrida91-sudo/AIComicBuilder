@@ -37,10 +37,7 @@ interface KlingTaskData {
 
 
 function toBase64(filePath: string): string {
-  let data: Buffer;
-  try {
-    data = fs.readFileSync(mediaPath(filePath));
-  } catch (error) { throw error; }
+  const data = fs.readFileSync(mediaPath(filePath));
   return data.toString("base64");
 }
 

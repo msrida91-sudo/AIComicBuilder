@@ -1,4 +1,4 @@
-import { mediaPath } from "@/lib/media-path";
+import { mediaPath, StoragePathError } from "@/lib/media-path";
 import { serverProviderConfig, mediaFetch, providerTransport } from "@/lib/provider-security";
 import OpenAI from "openai";
 import type { AIProvider, TextOptions, ImageOptions } from "../types";
@@ -41,7 +41,9 @@ export class OpenAIProvider implements AIProvider {
             const mimeType = ext === ".png" ? "image/png" : "image/jpeg";
             content.push({ type: "image_url", image_url: { url: `data:${mimeType};base64,${data}` } });
           }
-        } catch (error) { throw error; }
+        } catch (error) {
+          if (error instanceof StoragePathError) throw error;
+        }
       }
       content.push({ type: "text", text: prompt });
       messages.push({ role: "user", content });

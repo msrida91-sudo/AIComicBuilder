@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     platform?: string;
     category: string;
     appId: string;
-    apiKey: string;
+    apiKey?: string;
     description?: string;
   };
 

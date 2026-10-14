@@ -53,7 +53,7 @@ export async function generateTitleCard(
       .inputOptions(["-f", "lavfi"])
       .outputOptions([
         "-vf",
-        `drawtext=textfile=\'${escapeSubtitlePath(textPath)}\':expansion=none:fontsize=${fontSize}:fontcolor=${textColor}:x=(w-text_w)/2:y=(h-text_h)/2`,
+        `drawtext=textfile='${escapeSubtitlePath(textPath)}':expansion=none:fontsize=${fontSize}:fontcolor=${textColor}:x=(w-text_w)/2:y=(h-text_h)/2`,
         "-c:v", "libx264",
         "-preset", "fast",
         "-crf", "23",

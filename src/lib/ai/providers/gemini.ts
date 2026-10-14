@@ -1,4 +1,4 @@
-import { mediaPath } from "@/lib/media-path";
+import { mediaPath, StoragePathError } from "@/lib/media-path";
 import { requireReviewedGenAiTransport, serverProviderConfig } from "@/lib/provider-security";
 import { GoogleGenAI } from "@google/genai";
 import type { AIProvider, TextOptions, ImageOptions } from "../types";
@@ -44,7 +44,9 @@ export class GeminiProvider implements AIProvider {
             const mimeType = ext === ".png" ? "image/png" : "image/jpeg";
             parts.push({ inlineData: { mimeType, data } });
           }
-        } catch (error) { throw error; }
+        } catch (error) {
+          if (error instanceof StoragePathError) throw error;
+        }
       }
     }
     parts.push({ text: prompt });
@@ -85,7 +87,9 @@ export class GeminiProvider implements AIProvider {
             parts.push({ text: label });
             parts.push({ inlineData: { mimeType, data } });
           }
-        } catch (error) { throw error; }
+        } catch (error) {
+          if (error instanceof StoragePathError) throw error;
+        }
       }
       if (imgIndex > 0) {
         parts.push({ text: `\n[END OF REFERENCE IMAGES — ${imgIndex} character sheets total]
