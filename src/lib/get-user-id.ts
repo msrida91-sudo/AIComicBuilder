@@ -1,3 +1,5 @@
-export function getUserIdFromRequest(request: Request): string {
-  return request.headers.get("x-user-id") ?? "";
+import { LOCAL_USER_ID } from "./local-user";
+
+export function getUserIdFromRequest(_request: Request): string {
+  return LOCAL_USER_ID;
 }

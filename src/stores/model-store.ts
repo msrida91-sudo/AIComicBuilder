@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { id as genId } from "@/lib/id";
 
 export type Protocol = "openai" | "gemini" | "seedance" | "ucloud-seedance" | "kling" | "wan" | "dashscope";
@@ -17,8 +17,6 @@ export interface Provider {
   protocol: Protocol;
   capability: Capability;
   baseUrl: string;
-  apiKey: string;
-  secretKey?: string;
   models: Model[];
 }
 
@@ -28,9 +26,9 @@ export interface ModelRef {
 }
 
 export interface ModelConfig {
-  text: { protocol: Protocol; baseUrl: string; apiKey: string; secretKey?: string; modelId: string } | null;
-  image: { protocol: Protocol; baseUrl: string; apiKey: string; secretKey?: string; modelId: string } | null;
-  video: { protocol: Protocol; baseUrl: string; apiKey: string; secretKey?: string; modelId: string } | null;
+  text: { protocol: Protocol; baseUrl: string; modelId: string } | null;
+  image: { protocol: Protocol; baseUrl: string; modelId: string } | null;
+  video: { protocol: Protocol; baseUrl: string; modelId: string } | null;
 }
 
 interface ModelStore {
@@ -50,6 +48,22 @@ interface ModelStore {
   setDefaultImageModel: (ref: ModelRef | null) => void;
   setDefaultVideoModel: (ref: ModelRef | null) => void;
   getModelConfig: () => ModelConfig;
+}
+
+
+// Do not spread persisted provider objects: older versions contain credentials.
+function metadataOnly(value: unknown) {
+  const state = (value ?? {}) as Partial<ModelStore>;
+  return {
+    providers: (state.providers ?? []).map((p) => ({
+      id: p.id, name: p.name, protocol: p.protocol, capability: p.capability || "text" as Capability,
+      baseUrl: p.baseUrl,
+      models: (p.models ?? []).map((m) => ({ id: m.id, name: m.name, checked: m.checked })),
+    })),
+    defaultTextModel: state.defaultTextModel ? { providerId: state.defaultTextModel.providerId, modelId: state.defaultTextModel.modelId } : null,
+    defaultImageModel: state.defaultImageModel ? { providerId: state.defaultImageModel.providerId, modelId: state.defaultImageModel.modelId } : null,
+    defaultVideoModel: state.defaultVideoModel ? { providerId: state.defaultVideoModel.providerId, modelId: state.defaultVideoModel.modelId } : null,
+  };
 }
 
 export const useModelStore = create<ModelStore>()(
@@ -150,8 +164,6 @@ export const useModelStore = create<ModelStore>()(
           return {
             protocol: provider.protocol,
             baseUrl: provider.baseUrl,
-            apiKey: provider.apiKey,
-            secretKey: provider.secretKey,
             modelId: ref.modelId,
           };
         }
@@ -164,34 +176,33 @@ export const useModelStore = create<ModelStore>()(
     }),
     {
       name: "model-store",
-      version: 2,
-      migrate: (persistedState: unknown, fromVersion: number) => {
-        // Called only when stored data has an explicit version number that differs from 2.
-        // For data with no version field (legacy), the merge function below handles migration.
-        if (fromVersion < 2) {
-          const state = persistedState as Record<string, unknown>;
-          const providers = (state.providers as Array<Record<string, unknown>>) ?? [];
-          return {
-            ...state,
-            providers: providers.map((p) => {
-              const caps = (p.capabilities as string[]) ?? [];
-              return { ...p, capability: caps[0] ?? "text" };
-            }),
-          };
-        }
-        return persistedState;
-      },
-      merge: (persistedState: unknown, currentState) => {
-        // Handles legacy stored data that has no version field (Zustand skips migrate in that case).
-        const ps = persistedState as Record<string, unknown>;
-        const providers = (ps?.providers as Array<Record<string, unknown>>) ?? [];
-        const migrated = providers.map((p) => {
-          if (typeof p.capability === "string") return p; // already migrated
-          const caps = (p.capabilities as string[]) ?? [];
-          return { ...p, capability: caps[0] ?? "text" };
-        });
-        return { ...currentState, ...ps, providers: migrated as unknown as Provider[] };
-      },
+      version: 3,
+      // Rewrite legacy storage through a strict metadata allowlist before hydration.
+      storage: createJSONStorage(() => ({
+        getItem: (name: string) => {
+          const raw = localStorage.getItem(name);
+          if (!raw) return null;
+          try {
+            const saved = JSON.parse(raw);
+            saved.state = metadataOnly(saved.state);
+            const clean = JSON.stringify(saved);
+            localStorage.setItem(name, clean);
+            return clean;
+          } catch {
+            localStorage.removeItem(name);
+            return null;
+          }
+        },
+        setItem: (name: string, value: string) => {
+          const saved = JSON.parse(value);
+          saved.state = metadataOnly(saved.state);
+          localStorage.setItem(name, JSON.stringify(saved));
+        },
+        removeItem: (name: string) => localStorage.removeItem(name),
+      })),
+      partialize: metadataOnly,
+      migrate: (state: unknown) => metadataOnly(state),
+      merge: (state: unknown, current) => ({ ...current, ...metadataOnly(state) }),
     }
   )
 );

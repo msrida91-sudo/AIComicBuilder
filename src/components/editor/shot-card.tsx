@@ -626,8 +626,6 @@ export function ShotCard({
     return {
       protocol: provider.protocol,
       baseUrl: provider.baseUrl,
-      apiKey: provider.apiKey,
-      secretKey: provider.secretKey,
       modelId: modelRef.modelId,
     };
   }

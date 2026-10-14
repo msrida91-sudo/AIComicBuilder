@@ -1,3 +1,4 @@
+import { publicAgent } from "@/lib/safe-responses";
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { agents } from "@/lib/db/schema";
@@ -18,6 +19,10 @@ export async function PATCH(
     description: string;
   }>;
 
+  if (body.apiKey) {
+    return NextResponse.json({ error: "Configure agent credentials in the server environment" }, { status: 400 });
+  }
+
   const [existing] = await db
     .select()
     .from(agents)
@@ -33,14 +38,14 @@ export async function PATCH(
       ...(body.name !== undefined && { name: body.name }),
       ...(body.category !== undefined && { category: body.category as typeof agents.$inferInsert.category }),
       ...(body.appId !== undefined && { appId: body.appId }),
-      ...(body.apiKey !== undefined && { apiKey: body.apiKey }),
+      apiKey: "", // Discard legacy stored credentials on edit.
       ...(body.description !== undefined && { description: body.description }),
       updatedAt: new Date(),
     })
     .where(eq(agents.id, id));
 
   const [updated] = await db.select().from(agents).where(eq(agents.id, id));
-  return NextResponse.json(updated);
+  return NextResponse.json(publicAgent(updated));
 }
 
 export async function DELETE(

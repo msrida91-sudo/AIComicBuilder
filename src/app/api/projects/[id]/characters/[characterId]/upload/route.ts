@@ -1,3 +1,5 @@
+import { withStorageErrors } from "@/lib/media-path";
+import { mediaPath } from "@/lib/media-path";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { characters } from "@/lib/db/schema";
@@ -9,7 +11,7 @@ import { assertProjectOwnership } from "@/lib/assert-project-ownership";
 
 const uploadDir = process.env.UPLOAD_DIR || "./uploads";
 
-export async function POST(
+async function handlePOST(
   request: Request,
   { params }: { params: Promise<{ id: string; characterId: string }> }
 ) {
@@ -35,9 +37,9 @@ export async function POST(
   const buffer = Buffer.from(await file.arrayBuffer());
   const ext = file.name.split(".").pop() || "png";
   const filename = `${genId()}.${ext}`;
-  const dir = path.join(uploadDir, "characters");
+  const dir = mediaPath(path.join(uploadDir, "characters"), "directory");
   fs.mkdirSync(dir, { recursive: true });
-  const filepath = path.join(dir, filename);
+  const filepath = mediaPath(path.join(dir, filename), "write");
   fs.writeFileSync(filepath, buffer);
 
   // Append to history
@@ -60,3 +62,5 @@ export async function POST(
 
   return NextResponse.json(updated);
 }
+
+export const POST = withStorageErrors(handlePOST);

@@ -1,3 +1,5 @@
+import { mediaPath } from "@/lib/media-path";
+import { serverProviderConfig, providerFetch, mediaFetch } from "@/lib/provider-security";
 import type { VideoProvider, VideoGenerateParams, VideoGenerateResult } from "../types";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,7 +15,7 @@ function toDataUrl(filePath: string): string {
         : ext === "webp"
           ? "image/webp"
           : "image/png";
-  const base64 = fs.readFileSync(filePath, { encoding: "base64" });
+  const base64 = fs.readFileSync(mediaPath(filePath), { encoding: "base64" });
   return `data:${mime};base64,${base64}`;
 }
 
@@ -37,6 +39,8 @@ export class SeedanceProvider implements VideoProvider {
     model?: string;
     uploadDir?: string;
   }) {
+    const secure = serverProviderConfig({ protocol: "seedance", baseUrl: params?.baseUrl });
+    params = { ...params, baseUrl: secure.baseUrl, apiKey: secure.apiKey };
     this.apiKey = params?.apiKey || process.env.SEEDANCE_API_KEY || "";
     this.baseUrl = (
       params?.baseUrl ||
@@ -58,7 +62,7 @@ export class SeedanceProvider implements VideoProvider {
       `[Seedance] Submitting task: model=${body.model}, duration=${body.duration}, ratio=${body.ratio}`
     );
 
-    const submitResponse = await fetch(
+    const submitResponse = await providerFetch("seedance", 
       `${this.baseUrl}/contents/generations/tasks`,
       {
         method: "POST",
@@ -82,12 +86,12 @@ export class SeedanceProvider implements VideoProvider {
 
     const { videoUrl, lastFrameUrl } = await this.pollForResult(submitResult.id);
 
-    const videoResponse = await fetch(videoUrl);
+    const videoResponse = await mediaFetch(videoUrl);
     const buffer = Buffer.from(await videoResponse.arrayBuffer());
     const filename = `${genId()}.mp4`;
-    const dir = path.join(this.uploadDir, "videos");
+    const dir = mediaPath(path.join(this.uploadDir, "videos"), "directory");
     fs.mkdirSync(dir, { recursive: true });
-    const filepath = path.join(dir, filename);
+    const filepath = mediaPath(path.join(dir, filename), "write");
     fs.writeFileSync(filepath, buffer);
 
     return { filePath: filepath, lastFrameUrl };
@@ -159,7 +163,7 @@ export class SeedanceProvider implements VideoProvider {
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise((resolve) => setTimeout(resolve, interval));
 
-      const response = await fetch(
+      const response = await providerFetch("seedance", 
         `${this.baseUrl}/contents/generations/tasks/${taskId}`,
         {
           headers: { Authorization: `Bearer ${this.apiKey}` },

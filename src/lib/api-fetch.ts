@@ -1,5 +1,3 @@
-import { getUserId } from "./fingerprint";
-
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -8,9 +6,8 @@ export class ApiError extends Error {
 }
 
 export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const userId = getUserId();
   const headers = new Headers(options.headers);
-  if (userId) headers.set("x-user-id", userId);
+  headers.delete("x-user-id");
   const response = await fetch(url, { ...options, headers });
   if (!response.ok) {
     let message = `HTTP ${response.status}`;

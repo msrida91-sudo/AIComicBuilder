@@ -11,7 +11,7 @@ import {
   type Capability,
 } from "@/stores/model-store";
 import { useTranslations } from "next-intl";
-import { Loader2, Download, Plus, Eye, EyeOff, Trash2, Search } from "lucide-react";
+import { Loader2, Download, Plus, Trash2, Search } from "lucide-react";
 
 const DEFAULT_BASE_URLS: Record<Protocol, string> = {
   openai: "https://api.openai.com",
@@ -59,11 +59,8 @@ export function ProviderForm({ provider }: ProviderFormProps) {
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [manualModelId, setManualModelId] = useState("");
-  const [showKey, setShowKey] = useState(false);
-  const [showSecretKey, setShowSecretKey] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
 
-  const isKling = provider.protocol === "kling";
 
   async function handleFetchModels() {
     setFetching(true);
@@ -75,7 +72,6 @@ export function ProviderForm({ provider }: ProviderFormProps) {
         body: JSON.stringify({
           protocol: provider.protocol,
           baseUrl: provider.baseUrl,
-          apiKey: provider.apiKey,
         }),
       });
       const data = await res.json();
@@ -114,7 +110,7 @@ export function ProviderForm({ provider }: ProviderFormProps) {
             onChange={(e) =>
               updateProvider(provider.id, { name: e.target.value })
             }
-            placeholder="e.g. DeepSeek, OpenRouter..."
+            placeholder="Provider name"
           />
         </div>
         <div className="space-y-1.5">
@@ -143,99 +139,10 @@ export function ProviderForm({ provider }: ProviderFormProps) {
         </div>
       </div>
 
-      {/* Row 2: Base URL + API Key (or AK+SK stacked for Kling) */}
-      {isKling ? (
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Base URL</Label>
-            <Input
-              value={provider.baseUrl}
-              onChange={(e) =>
-                updateProvider(provider.id, { baseUrl: e.target.value })
-              }
-              placeholder="https://api.klingai.com"
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Access Key (AK)</Label>
-              <div className="relative">
-                <Input
-                  type={showKey ? "text" : "password"}
-                  value={provider.apiKey}
-                  onChange={(e) =>
-                    updateProvider(provider.id, { apiKey: e.target.value })
-                  }
-                  placeholder="Access Key..."
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKey(!showKey)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-lg text-[--text-muted] hover:text-[--text-primary]"
-                >
-                  {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                </button>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Secret Key (SK)</Label>
-              <div className="relative">
-                <Input
-                  type={showSecretKey ? "text" : "password"}
-                  value={provider.secretKey ?? ""}
-                  onChange={(e) =>
-                    updateProvider(provider.id, { secretKey: e.target.value })
-                  }
-                  placeholder="Secret Key..."
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowSecretKey(!showSecretKey)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-lg text-[--text-muted] hover:text-[--text-primary]"
-                >
-                  {showSecretKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Base URL</Label>
-            <Input
-              value={provider.baseUrl}
-              onChange={(e) =>
-                updateProvider(provider.id, { baseUrl: e.target.value })
-              }
-              placeholder="https://api.openai.com"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">API Key</Label>
-            <div className="relative">
-              <Input
-                type={showKey ? "text" : "password"}
-                value={provider.apiKey}
-                onChange={(e) =>
-                  updateProvider(provider.id, { apiKey: e.target.value })
-                }
-                placeholder="sk-..."
-                className="pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey(!showKey)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-lg text-[--text-muted] hover:text-[--text-primary]"
-              >
-                {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <p className="text-xs text-[--text-muted]">
+        Credentials are configured only in the server's .env.local file.
+        Provider destinations are restricted in local single-user mode.
+      </p>
 
       {/* Divider */}
       <div className="border-t border-[--border-subtle]" />
@@ -248,7 +155,7 @@ export function ProviderForm({ provider }: ProviderFormProps) {
             size="sm"
             variant="outline"
             onClick={handleFetchModels}
-            disabled={fetching || (!provider.apiKey && provider.protocol !== "kling")}
+            disabled={fetching}
           >
             {fetching ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />

@@ -1,3 +1,5 @@
+import { withStorageErrors } from "@/lib/media-path";
+import { mediaPath, mediaSegment } from "@/lib/media-path";
 import { NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,23 +15,13 @@ const MIME_TYPES: Record<string, string> = {
   ".webm": "video/webm",
 };
 
-export async function GET(
+async function handleGET(
   _request: Request,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path: segments } = await params;
-  const filePath = path.join(uploadDir, ...segments);
-
-  // Prevent directory traversal
-  const resolved = path.resolve(filePath);
-  const resolvedUploadDir = path.resolve(uploadDir);
-  if (!resolved.startsWith(resolvedUploadDir)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  if (!fs.existsSync(resolved)) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  segments.forEach(mediaSegment);
+  const resolved = mediaPath(path.join(uploadDir, ...segments));
 
   const ext = path.extname(resolved).toLowerCase();
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
@@ -39,3 +31,5 @@ export async function GET(
     headers: { "Content-Type": contentType },
   });
 }
+
+export const GET = withStorageErrors(handleGET);

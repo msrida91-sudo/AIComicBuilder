@@ -1,3 +1,5 @@
+import { withStorageErrors } from "@/lib/media-path";
+import { mediaSegment, StoragePathError } from "@/lib/media-path";
 import { NextResponse } from "next/server";
 import { streamText, generateText } from "ai";
 import { createLanguageModel, extractJSON } from "@/lib/ai/ai-sdk";
@@ -131,17 +133,11 @@ async function getVersionedUploadDir(versionId: string | null | undefined): Prom
     .from(storyboardVersions)
     .where(eq(storyboardVersions.id, versionId));
   if (!version) return process.env.UPLOAD_DIR || "./uploads";
-  return path.join(process.env.UPLOAD_DIR || "./uploads", "projects", version.projectId, version.label);
+  return path.join(process.env.UPLOAD_DIR || "./uploads", "projects", mediaSegment(version.projectId), mediaSegment(version.label));
 }
 
 function extractErrorMessage(err: unknown): string {
-  if (!(err instanceof Error)) return String(err);
-  // Try to parse JSON error bodies (e.g. Google GenAI ApiError)
-  try {
-    const parsed = JSON.parse(err.message) as { error?: { message?: string } };
-    if (parsed?.error?.message) return parsed.error.message;
-  } catch {}
-  return err.message;
+  return err instanceof StoragePathError ? err.message : "Generation failed; check local server configuration";
 }
 
 interface ModelConfig {
@@ -169,7 +165,7 @@ async function findBoundAgent(projectId: string, category: AgentCategory) {
   return agent ?? null;
 }
 
-export async function POST(
+async function handlePOST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -303,7 +299,7 @@ export async function POST(
     ...(episodeId ? { episodeId } : {}),
   });
 
-  return NextResponse.json(task, { status: 201 });
+  return NextResponse.json({ id: task.id, status: task.status, type: task.type }, { status: 201 });
 }
 
 // --- script_outline: stream plain text outline from an idea ---
@@ -895,7 +891,7 @@ async function handleSingleCharacterImage(
     return NextResponse.json({ characterId, imagePath, status: "ok", staleShots: staleCount });
   } catch (err) {
     console.error(`[SingleCharacterImage] Error for ${character.name}:`, err);
-    return NextResponse.json({ characterId, status: "error", error: extractErrorMessage(err) }, { status: 500 });
+    return NextResponse.json({ characterId, status: "error", error: extractErrorMessage(err) }, { status: err instanceof StoragePathError ? 400 : 500 });
   }
 }
 
@@ -1472,7 +1468,7 @@ IMPORTANT: Keep the same scene, characters, and narrative intent. Only rephrase 
     return NextResponse.json({ shotId, status: "ok", ...parsed });
   } catch (err) {
     console.error(`[SingleShotRewrite] Error for shot ${shotId}:`, err);
-    return NextResponse.json({ shotId, status: "error", error: extractErrorMessage(err) }, { status: 500 });
+    return NextResponse.json({ shotId, status: "error", error: extractErrorMessage(err) }, { status: err instanceof StoragePathError ? 400 : 500 });
   }
 }
 
@@ -1796,7 +1792,7 @@ async function handleSingleFrameGenerate(
   } catch (err) {
     console.error(`[SingleFrameGenerate] Error for shot ${shotId}:`, err);
     await db.update(shots).set({ status: "failed" }).where(eq(shots.id, shotId));
-    return NextResponse.json({ shotId, status: "error", error: extractErrorMessage(err) }, { status: 500 });
+    return NextResponse.json({ shotId, status: "error", error: extractErrorMessage(err) }, { status: err instanceof StoragePathError ? 400 : 500 });
   }
 }
 
@@ -1905,7 +1901,7 @@ async function handleSingleVideoGenerate(
   } catch (err) {
     console.error(`[SingleVideoGenerate] Error for shot ${shotId}:`, err);
     await db.update(shots).set({ status: "failed" }).where(eq(shots.id, shotId));
-    return NextResponse.json({ shotId, status: "error", error: extractErrorMessage(err) }, { status: 500 });
+    return NextResponse.json({ shotId, status: "error", error: extractErrorMessage(err) }, { status: err instanceof StoragePathError ? 400 : 500 });
   }
 }
 
@@ -2110,7 +2106,7 @@ async function handleSingleSceneFrame(
     await db.update(shots).set({ status: "failed" }).where(eq(shots.id, shotId));
     return NextResponse.json(
       { shotId, status: "error", error: extractErrorMessage(err) },
-      { status: 500 }
+      { status: err instanceof StoragePathError ? 400 : 500 }
     );
   }
 }
@@ -2411,7 +2407,7 @@ async function handleSingleReferenceVideo(
     await db.update(shots).set({ status: "failed" }).where(eq(shots.id, shotId));
     return NextResponse.json(
       { shotId, status: "error", error: extractErrorMessage(err) },
-      { status: 500 }
+      { status: err instanceof StoragePathError ? 400 : 500 }
     );
   }
 }
@@ -2761,7 +2757,7 @@ async function handleVideoAssembleSync(projectId: string, payload?: Record<strin
     return NextResponse.json({ outputPath: result.videoPath, srtPath: result.srtPath, status: "ok" });
   } catch (err) {
     console.error("[VideoAssemble] Error:", err);
-    return NextResponse.json({ status: "error", error: extractErrorMessage(err) }, { status: 500 });
+    return NextResponse.json({ status: "error", error: extractErrorMessage(err) }, { status: err instanceof StoragePathError ? 400 : 500 });
   }
 }
 
@@ -2885,7 +2881,7 @@ async function handleSingleVideoPrompt(
     return NextResponse.json({ shotId, videoPrompt, status: "ok" });
   } catch (err) {
     console.error("[SingleVideoPrompt] Error:", err);
-    return NextResponse.json({ status: "error", error: extractErrorMessage(err) }, { status: 500 });
+    return NextResponse.json({ status: "error", error: extractErrorMessage(err) }, { status: err instanceof StoragePathError ? 400 : 500 });
   }
 }
 
@@ -3280,7 +3276,7 @@ async function handleSingleRefImageGenerate(
 
     return NextResponse.json({ ok: true, imagePath });
   } catch (err) {
-    return NextResponse.json({ error: `Generation failed: ${err}` }, { status: 500 });
+    return NextResponse.json({ error: `Generation failed: ${err}` }, { status: err instanceof StoragePathError ? 400 : 500 });
   }
 }
 
@@ -3893,3 +3889,5 @@ async function handleGenerateKeyframePrompts(
   console.log(`[GenerateKeyframePrompts] Updated ${updatedCount}/${allShots.length} shots (concurrent)`);
   return NextResponse.json({ updatedCount, totalShots: allShots.length });
 }
+
+export const POST = withStorageErrors(handlePOST);

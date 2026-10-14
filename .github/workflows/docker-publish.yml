@@ -1,16 +1,14 @@
 name: Build and Publish Docker Image
 
-on:
-  push:
-    branches: [main]
-    tags: ["v*"]
+on: workflow_dispatch
 
 jobs:
   build-and-push:
+    # Retained as upstream reference only; publishing is disabled in this fork.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      packages: write
+      contents: read
 
     steps:
       - name: Checkout

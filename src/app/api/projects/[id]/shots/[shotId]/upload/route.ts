@@ -1,3 +1,5 @@
+import { withStorageErrors } from "@/lib/media-path";
+import { mediaPath } from "@/lib/media-path";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { shots } from "@/lib/db/schema";
@@ -12,7 +14,7 @@ const uploadDir = process.env.UPLOAD_DIR || "./uploads";
 const ALLOWED_FIELDS = ["firstFrame", "lastFrame", "sceneRefFrame", "reference_image"] as const;
 type AllowedField = (typeof ALLOWED_FIELDS)[number];
 
-export async function POST(
+async function handlePOST(
   request: Request,
   { params }: { params: Promise<{ id: string; shotId: string }> }
 ) {
@@ -41,9 +43,9 @@ export async function POST(
   const buffer = Buffer.from(await file.arrayBuffer());
   const ext = file.name.split(".").pop() || "png";
   const filename = `${genId()}.${ext}`;
-  const dir = path.join(uploadDir, "frames");
+  const dir = mediaPath(path.join(uploadDir, "frames"), "directory");
   fs.mkdirSync(dir, { recursive: true });
-  const filepath = path.join(dir, filename);
+  const filepath = mediaPath(path.join(dir, filename), "write");
   fs.writeFileSync(filepath, buffer);
 
   // For reference_image uploads, just return the file path without updating a DB column
@@ -59,3 +61,5 @@ export async function POST(
 
   return NextResponse.json(updated);
 }
+
+export const POST = withStorageErrors(handlePOST);

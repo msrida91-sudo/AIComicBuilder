@@ -1,3 +1,5 @@
+import { mediaPath } from "@/lib/media-path";
+import { serverProviderConfig, mediaFetch, providerTransport } from "@/lib/provider-security";
 import OpenAI from "openai";
 import type { AIProvider, TextOptions, ImageOptions } from "../types";
 import fs from "node:fs";
@@ -10,9 +12,13 @@ export class OpenAIProvider implements AIProvider {
   private uploadDir: string;
 
   constructor(params?: { apiKey?: string; baseURL?: string; model?: string; uploadDir?: string; }) {
+    const secure = serverProviderConfig({ protocol: "openai", baseUrl: params?.baseURL });
+    params = { ...params, baseURL: secure.baseUrl, apiKey: secure.apiKey };
     this.client = new OpenAI({
       apiKey: params?.apiKey || process.env.OPENAI_API_KEY,
       baseURL: params?.baseURL || process.env.OPENAI_BASE_URL,
+      fetch: providerTransport("openai"),
+      maxRetries: 0,
     });
     this.defaultModel = params?.model || process.env.OPENAI_MODEL || "gpt-4o";
     this.uploadDir = params?.uploadDir || process.env.UPLOAD_DIR || "./uploads";
@@ -28,14 +34,14 @@ export class OpenAIProvider implements AIProvider {
       const content: OpenAI.Chat.ChatCompletionContentPart[] = [];
       for (const imgPath of options.images) {
         try {
-          const resolved = path.resolve(imgPath);
+          const resolved = mediaPath(imgPath);
           if (fs.existsSync(resolved)) {
             const data = fs.readFileSync(resolved).toString("base64");
             const ext = path.extname(resolved).toLowerCase();
             const mimeType = ext === ".png" ? "image/png" : "image/jpeg";
             content.push({ type: "image_url", image_url: { url: `data:${mimeType};base64,${data}` } });
           }
-        } catch { /* skip unreadable */ }
+        } catch (error) { throw error; }
       }
       content.push({ type: "text", text: prompt });
       messages.push({ role: "user", content });
@@ -81,12 +87,12 @@ export class OpenAIProvider implements AIProvider {
     const imageUrl = response.data?.[0]?.url;
     if (!imageUrl) throw new Error("No image URL returned from OpenAI");
 
-    const imageResponse = await fetch(imageUrl);
+    const imageResponse = await mediaFetch(imageUrl);
     const buffer = Buffer.from(await imageResponse.arrayBuffer());
     const filename = `${genId()}.png`;
-    const dir = path.join(this.uploadDir, "frames");
+    const dir = mediaPath(path.join(this.uploadDir, "frames"), "directory");
     fs.mkdirSync(dir, { recursive: true });
-    const filepath = path.join(dir, filename);
+    const filepath = mediaPath(path.join(dir, filename), "write");
     fs.writeFileSync(filepath, buffer);
 
     return filepath;

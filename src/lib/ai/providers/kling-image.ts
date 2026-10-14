@@ -1,3 +1,5 @@
+import { mediaPath } from "@/lib/media-path";
+import { serverProviderConfig, providerFetch, mediaFetch } from "@/lib/provider-security";
 import type { AIProvider, TextOptions, ImageOptions } from "../types";
 import fs from "node:fs";
 import path from "node:path";
@@ -46,6 +48,8 @@ export class KlingImageProvider implements AIProvider {
     model?: string;
     uploadDir?: string;
   }) {
+    const secure = serverProviderConfig({ protocol: "kling", baseUrl: params?.baseUrl });
+    params = { ...params, baseUrl: secure.baseUrl, apiKey: secure.apiKey, secretKey: secure.secretKey };
     this.apiKey = params?.apiKey || process.env.KLING_ACCESS_KEY || "";
     this.secretKey = params?.secretKey || process.env.KLING_SECRET_KEY || "";
     this.baseUrl = (params?.baseUrl || "https://api.klingai.com").replace(/\/+$/, "");
@@ -66,7 +70,7 @@ export class KlingImageProvider implements AIProvider {
 
   async generateImage(prompt: string, options?: ImageOptions): Promise<string> {
     // Submit task
-    const submitRes = await fetch(`${this.baseUrl}/v1/images/generations`, {
+    const submitRes = await providerFetch("kling", `${this.baseUrl}/v1/images/generations`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -96,13 +100,13 @@ export class KlingImageProvider implements AIProvider {
     const imageUrl = await this.pollForResult(taskId);
 
     // Download to local storage
-    const imageRes = await fetch(imageUrl);
+    const imageRes = await mediaFetch(imageUrl);
     const buffer = Buffer.from(await imageRes.arrayBuffer());
     const ext = imageUrl.split("?")[0].split(".").pop() || "png";
     const filename = `${genId()}.${ext}`;
-    const dir = path.join(this.uploadDir, "images");
+    const dir = mediaPath(path.join(this.uploadDir, "images"), "directory");
     fs.mkdirSync(dir, { recursive: true });
-    const filepath = path.join(dir, filename);
+    const filepath = mediaPath(path.join(dir, filename), "write");
     fs.writeFileSync(filepath, buffer);
 
     console.log(`[Kling Image] Saved to ${filepath}`);
@@ -115,7 +119,7 @@ export class KlingImageProvider implements AIProvider {
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise((resolve) => setTimeout(resolve, 5_000));
 
-      const res = await fetch(`${this.baseUrl}/v1/images/generations/${taskId}`, {
+      const res = await providerFetch("kling", `${this.baseUrl}/v1/images/generations/${taskId}`, {
         headers: { Authorization: this.getAuthHeader() },
       });
 

@@ -1,3 +1,4 @@
+import { serverProviderConfig, providerFetch } from "@/lib/provider-security";
 import { NextResponse } from "next/server";
 
 interface ListRequest {
@@ -22,9 +23,8 @@ function buildModelsUrl(baseUrl: string): string {
 
 async function fetchModels(baseUrl: string, apiKey: string): Promise<ModelItem[]> {
   const url = buildModelsUrl(baseUrl);
-  console.log("[models/list] Fetching:", url);
 
-  const res = await fetch(url, {
+  const res = await providerFetch("openai", url, {
     headers: { Authorization: `Bearer ${apiKey}` },
   });
 
@@ -43,9 +43,8 @@ async function fetchModels(baseUrl: string, apiKey: string): Promise<ModelItem[]
 async function fetchGeminiModels(baseUrl: string, apiKey: string): Promise<ModelItem[]> {
   const base = baseUrl.replace(/\/+$/, "");
   const url = `${base}/v1beta/models?key=${encodeURIComponent(apiKey)}`;
-  console.log("[models/list] Fetching Gemini:", url.replace(apiKey, "***"));
 
-  const res = await fetch(url);
+  const res = await providerFetch("gemini", url);
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -64,7 +63,7 @@ async function fetchGeminiModels(baseUrl: string, apiKey: string): Promise<Model
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as ListRequest;
+    const body = serverProviderConfig((await request.json()) as ListRequest);
 
     if (body.protocol === "kling") {
       return NextResponse.json({
@@ -131,8 +130,7 @@ export async function POST(request: Request) {
       : await fetchModels(body.baseUrl, body.apiKey);
     return NextResponse.json({ models });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[models/list] Error:", message);
+    const message = "Unable to list models; verify server environment and trusted provider destination";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

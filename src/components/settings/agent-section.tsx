@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Eye, EyeOff, Bot, Save, Pencil, X } from "lucide-react";
+import { Plus, Trash2, Bot, Save, Pencil, X } from "lucide-react";
 
 interface Agent {
   id: string;
@@ -14,7 +14,6 @@ interface Agent {
   platform: string;
   category: string;
   appId: string;
-  apiKey: string;
   description: string;
 }
 
@@ -41,7 +40,6 @@ const EMPTY_FORM = {
   platform: "bailian" as string,
   category: CATEGORIES[0].value as string,
   appId: "",
-  apiKey: "",
   description: "",
 };
 
@@ -52,7 +50,6 @@ export function AgentSection() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [form, setForm] = useState(EMPTY_FORM);
 
   const fetchAgents = useCallback(async () => {
@@ -81,7 +78,6 @@ export function AgentSection() {
       platform: agent.platform || "bailian",
       category: agent.category,
       appId: agent.appId,
-      apiKey: agent.apiKey,
       description: agent.description || "",
     });
     setEditingId(agent.id);
@@ -90,7 +86,7 @@ export function AgentSection() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name || !form.appId || !form.apiKey) return;
+    if (!form.name || !form.appId) return;
     setSaving(true);
     try {
       if (editingId) {
@@ -123,15 +119,6 @@ export function AgentSection() {
     } catch {
       // silently fail
     }
-  }
-
-  function toggleKeyVisibility(id: string) {
-    setVisibleKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   }
 
   function categoryLabel(value: string) {
@@ -237,16 +224,7 @@ export function AgentSection() {
                 required
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">API Key</Label>
-              <Input
-                type="password"
-                value={form.apiKey}
-                onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
-                placeholder="sk-xxxxxxxxxxxx"
-                required
-              />
-            </div>
+            <p className="text-xs text-[--text-muted]">Agent credentials come from the server environment.</p>
           </div>
 
           <div className="space-y-1.5">
@@ -271,7 +249,7 @@ export function AgentSection() {
             <Button
               type="submit"
               size="sm"
-              disabled={saving || !form.name || !form.appId || !form.apiKey}
+              disabled={saving || !form.name || !form.appId}
               className="h-7 gap-1 text-xs"
             >
               <Save className="h-3.5 w-3.5" />
@@ -326,25 +304,7 @@ export function AgentSection() {
                     </span>
                   </td>
                   <td className="px-3 py-2.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleKeyVisibility(agent.id)}
-                      className="inline-flex items-center gap-1 text-xs text-[--text-muted] hover:text-[--text-primary] transition-colors"
-                    >
-                      {visibleKeys.has(agent.id) ? (
-                        <>
-                          <EyeOff className="h-3 w-3" />
-                          <span className="font-mono">
-                            {agent.apiKey.slice(0, 8)}...{agent.apiKey.slice(-4)}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="h-3 w-3" />
-                          <span>••••••••</span>
-                        </>
-                      )}
-                    </button>
+                    <span>Server environment</span>
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center justify-end gap-1">

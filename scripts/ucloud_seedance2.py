@@ -45,6 +45,30 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
 
+
+# Local hardening: no custom remote credential destinations or HTTP redirects.
+from urllib.parse import urlsplit
+from urllib.request import build_opener, HTTPRedirectHandler
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ValueError("HTTP redirects are disabled")
+
+def validate_api_url(url: str) -> str:
+    parsed = urlsplit(url)
+    if parsed.username or parsed.password or parsed.fragment:
+        raise ValueError("Invalid provider URL")
+    loopback = parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+    trusted = parsed.hostname in {"api.modelverse.cn"}
+    if loopback and parsed.scheme in {"http", "https"}:
+        return url
+    if parsed.scheme != "https" or not trusted or parsed.port not in {None, 443}:
+        raise ValueError("Untrusted provider URL")
+    return url
+
+def safe_open(request):
+    return build_opener(NoRedirect()).open(request)
+
 # ─── 配置 ───────────────────────────────────────────────
 
 DEFAULT_MODEL = "doubao-seedance-2-0-pro-250528"
@@ -91,6 +115,7 @@ def to_video_url(path_or_url: str) -> str:
 
 def api_request(api_key: str, method: str, url: str, data: dict | None = None) -> dict:
     """发送 HTTP 请求"""
+    validate_api_url(url)
     headers = {
         "Content-Type": "application/json",
         "Authorization": api_key,
@@ -99,7 +124,7 @@ def api_request(api_key: str, method: str, url: str, data: dict | None = None) -
     req = Request(url, data=body, headers=headers, method=method)
 
     try:
-        with urlopen(req) as resp:
+        with safe_open(req) as resp:
             return json.loads(resp.read().decode())
     except HTTPError as e:
         err_body = e.read().decode() if e.fp else ""
@@ -307,8 +332,10 @@ def poll_task(api_key: str, base_url: str, task_id: str) -> str:
 
 def download_video(video_url: str, output_path: str) -> str:
     """下载视频到本地"""
+    if urlsplit(video_url).scheme != "https":
+        raise ValueError("Media download requires HTTPS")
     req = Request(video_url)
-    with urlopen(req) as resp:
+    with safe_open(req) as resp:
         data = resp.read()
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)

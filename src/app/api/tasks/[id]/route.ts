@@ -1,3 +1,4 @@
+import { publicTask } from "@/lib/safe-responses";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { tasks, projects } from "@/lib/db/schema";
@@ -24,5 +25,5 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json(row.task);
+  return NextResponse.json(publicTask(row.task));
 }

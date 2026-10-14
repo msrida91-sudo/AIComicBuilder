@@ -52,3 +52,13 @@ run_kling.sh
 
 # scratchpad clones (not part of project)
 /tmp/
+# Private keys and runtime databases
+*.key
+*.p12
+*.pfx
+*.sqlite
+*.sqlite3
+*.db
+*.db-*
+*.sqlite-*
+*.sqlite3-*

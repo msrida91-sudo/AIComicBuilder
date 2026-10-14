@@ -1,3 +1,4 @@
+import { mediaSegment } from "@/lib/media-path";
 import path from "path";
 import { db } from "@/lib/db";
 import { shots, characters, storyboardVersions } from "@/lib/db/schema";
@@ -18,7 +19,7 @@ async function getVersionedUploadDirFromPipeline(versionId: string | null | unde
     .from(storyboardVersions)
     .where(eq(storyboardVersions.id, versionId));
   if (!version) return process.env.UPLOAD_DIR || "./uploads";
-  return path.join(process.env.UPLOAD_DIR || "./uploads", "projects", version.projectId, version.label);
+  return path.join(process.env.UPLOAD_DIR || "./uploads", "projects", mediaSegment(version.projectId), mediaSegment(version.label));
 }
 
 export async function handleVideoGenerate(task: Task) {

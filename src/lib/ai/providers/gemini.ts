@@ -1,3 +1,5 @@
+import { mediaPath } from "@/lib/media-path";
+import { requireReviewedGenAiTransport, serverProviderConfig } from "@/lib/provider-security";
 import { GoogleGenAI } from "@google/genai";
 import type { AIProvider, TextOptions, ImageOptions } from "../types";
 import fs from "node:fs";
@@ -10,6 +12,9 @@ export class GeminiProvider implements AIProvider {
   private uploadDir: string;
 
   constructor(params?: { apiKey?: string; baseUrl?: string; model?: string; uploadDir?: string; }) {
+    requireReviewedGenAiTransport();
+    const secure = serverProviderConfig({ protocol: "gemini", baseUrl: params?.baseUrl });
+    params = { ...params, baseUrl: secure.baseUrl, apiKey: secure.apiKey };
     const options: ConstructorParameters<typeof GoogleGenAI>[0] = {
       apiKey: params?.apiKey || process.env.GEMINI_API_KEY || "",
     };
@@ -32,14 +37,14 @@ export class GeminiProvider implements AIProvider {
     if (options?.images?.length) {
       for (const imgPath of options.images) {
         try {
-          const resolved = path.resolve(imgPath);
+          const resolved = mediaPath(imgPath);
           if (fs.existsSync(resolved)) {
             const data = fs.readFileSync(resolved).toString("base64");
             const ext = path.extname(resolved).toLowerCase();
             const mimeType = ext === ".png" ? "image/png" : "image/jpeg";
             parts.push({ inlineData: { mimeType, data } });
           }
-        } catch { /* skip */ }
+        } catch (error) { throw error; }
       }
     }
     parts.push({ text: prompt });
@@ -68,7 +73,7 @@ export class GeminiProvider implements AIProvider {
       for (let ri = 0; ri < options.referenceImages.length; ri++) {
         const imgPath = options.referenceImages[ri];
         try {
-          const resolved = path.resolve(imgPath);
+          const resolved = mediaPath(imgPath);
           if (fs.existsSync(resolved)) {
             const data = fs.readFileSync(resolved).toString("base64");
             const ext = path.extname(resolved).toLowerCase();
@@ -80,9 +85,7 @@ export class GeminiProvider implements AIProvider {
             parts.push({ text: label });
             parts.push({ inlineData: { mimeType, data } });
           }
-        } catch {
-          // Skip unreadable images
-        }
+        } catch (error) { throw error; }
       }
       if (imgIndex > 0) {
         parts.push({ text: `\n[END OF REFERENCE IMAGES — ${imgIndex} character sheets total]
@@ -116,9 +119,9 @@ CRITICAL CHARACTER CONSISTENCY RULES:
         const buffer = Buffer.from(part.inlineData.data, "base64");
         const ext = part.inlineData.mimeType?.includes("png") ? "png" : "jpg";
         const filename = `${genId()}.${ext}`;
-        const dir = path.join(this.uploadDir, "frames");
+        const dir = mediaPath(path.join(this.uploadDir, "frames"), "directory");
         fs.mkdirSync(dir, { recursive: true });
-        const filepath = path.join(dir, filename);
+        const filepath = mediaPath(path.join(dir, filename), "write");
         fs.writeFileSync(filepath, buffer);
         return filepath;
       }

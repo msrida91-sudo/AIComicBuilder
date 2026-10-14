@@ -1,3 +1,4 @@
+import { publicAgent } from "@/lib/safe-responses";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { agents } from "@/lib/db/schema";
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
     .select()
     .from(agents)
     .where(eq(agents.userId, userId));
-  return NextResponse.json(rows);
+  return NextResponse.json(rows.map(publicAgent));
 }
 
 export async function POST(request: Request) {
@@ -25,7 +26,11 @@ export async function POST(request: Request) {
     description?: string;
   };
 
-  if (!body.name || !body.category || !body.appId || !body.apiKey) {
+  if (body.apiKey) {
+    return NextResponse.json({ error: "Configure agent credentials in the server environment" }, { status: 400 });
+  }
+
+  if (!body.name || !body.category || !body.appId) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
@@ -43,12 +48,12 @@ export async function POST(request: Request) {
     platform: (body.platform || "bailian") as typeof agents.$inferInsert.platform,
     category: body.category as typeof agents.$inferInsert.category,
     appId: body.appId,
-    apiKey: body.apiKey,
+    apiKey: "", // Schema compatibility only; credentials come from server environment.
     description: body.description || "",
     createdAt: now,
     updatedAt: now,
   });
 
   const [created] = await db.select().from(agents).where(eq(agents.id, id));
-  return NextResponse.json(created, { status: 201 });
+  return NextResponse.json(publicAgent(created), { status: 201 });
 }

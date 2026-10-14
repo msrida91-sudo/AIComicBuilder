@@ -36,7 +36,6 @@ export function ProviderSection({
       protocol: defaultProtocol,
       capability,
       baseUrl: defaultBaseUrl,
-      apiKey: "",
     });
     setSelectedId(id);
   }

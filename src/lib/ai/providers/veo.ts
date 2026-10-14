@@ -1,3 +1,5 @@
+import { mediaPath } from "@/lib/media-path";
+import { requireReviewedGenAiTransport, serverProviderConfig, providerFetch } from "@/lib/provider-security";
 // src/lib/ai/providers/veo.ts
 import { GoogleGenAI } from "@google/genai";
 import type { VideoProvider, VideoGenerateParams, VideoGenerateResult } from "../types";
@@ -24,7 +26,7 @@ function readImageData(filePath: string): { imageBytes: string; mimeType: string
     ext === ".png" ? "image/png" :
     ext === ".webp" ? "image/webp" :
     "image/jpeg";
-  const imageBytes = fs.readFileSync(filePath, { encoding: "base64" });
+  const imageBytes = fs.readFileSync(mediaPath(filePath), { encoding: "base64" });
   return { imageBytes, mimeType };
 }
 
@@ -34,6 +36,9 @@ export class VeoProvider implements VideoProvider {
   private uploadDir: string;
 
   constructor(params?: { apiKey?: string; baseUrl?: string; model?: string; uploadDir?: string }) {
+    requireReviewedGenAiTransport();
+    const secure = serverProviderConfig({ protocol: "gemini", baseUrl: params?.baseUrl });
+    params = { ...params, baseUrl: secure.baseUrl, apiKey: secure.apiKey };
     const options: ConstructorParameters<typeof GoogleGenAI>[0] = {
       apiKey: params?.apiKey || process.env.GEMINI_API_KEY || "",
     };
@@ -158,11 +163,15 @@ export class VeoProvider implements VideoProvider {
       throw new Error("No video URI returned from Veo");
     }
 
-    const dir = path.join(this.uploadDir, "videos");
+    const dir = mediaPath(path.join(this.uploadDir, "videos"), "directory");
     fs.mkdirSync(dir, { recursive: true });
-    const downloadPath = path.join(dir, `${genId()}.mp4`);
+    const downloadPath = mediaPath(path.join(dir, `${genId()}.mp4`), "write");
 
-    await this.client.files.download({ file: videoFile, downloadPath });
+    if (!videoFile.uri) throw new Error("Missing generated video URI");
+    const download = await providerFetch("gemini", videoFile.uri, {
+      headers: { "x-goog-api-key": serverProviderConfig({ protocol: "gemini" }).apiKey },
+    });
+    fs.writeFileSync(downloadPath, Buffer.from(await download.arrayBuffer()));
 
     console.log(`[Veo] Video saved to ${downloadPath}`);
     return { filePath: downloadPath };

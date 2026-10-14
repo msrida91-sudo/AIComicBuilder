@@ -1,3 +1,4 @@
+import { serverProviderConfig, providerTransport } from "@/lib/provider-security";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { LanguageModel } from "ai";
@@ -5,23 +6,27 @@ import type { LanguageModel } from "ai";
 export interface ProviderConfig {
   protocol: string;
   baseUrl: string;
-  apiKey: string;
+  apiKey?: string;
   secretKey?: string;
   modelId: string;
 }
 
 export function createLanguageModel(config: ProviderConfig): LanguageModel {
+  const serverConfig = serverProviderConfig(config);
   switch (config.protocol) {
     case "openai": {
       const provider = createOpenAI({
-        apiKey: config.apiKey,
-        baseURL: config.baseUrl,
+        apiKey: serverConfig.apiKey,
+        baseURL: serverConfig.baseUrl,
+        fetch: providerTransport("openai"),
       });
       return provider.chat(config.modelId);
     }
     case "gemini": {
       const provider = createGoogleGenerativeAI({
-        apiKey: config.apiKey,
+        apiKey: serverConfig.apiKey,
+        baseURL: serverConfig.baseUrl + "/v1beta",
+        fetch: providerTransport("gemini"),
       });
       return provider(config.modelId);
     }

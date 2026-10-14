@@ -1,3 +1,5 @@
+import { mediaPath } from "@/lib/media-path";
+import { serverProviderConfig, providerFetch, mediaFetch } from "@/lib/provider-security";
 import type { VideoProvider, VideoGenerateParams, VideoGenerateResult } from "../types";
 import fs from "node:fs";
 import path from "node:path";
@@ -17,7 +19,7 @@ function toImageUrl(imagePathOrUrl: string): string {
         : ext === "webp"
           ? "image/webp"
           : "image/png";
-  const base64 = fs.readFileSync(imagePathOrUrl, { encoding: "base64" });
+  const base64 = fs.readFileSync(mediaPath(imagePathOrUrl), { encoding: "base64" });
   return `data:${mime};base64,${base64}`;
 }
 
@@ -51,6 +53,8 @@ export class WanVideoProvider implements VideoProvider {
     model?: string;
     uploadDir?: string;
   }) {
+    const secure = serverProviderConfig({ protocol: "wan", baseUrl: params?.baseUrl });
+    params = { ...params, baseUrl: secure.baseUrl, apiKey: secure.apiKey };
     this.apiKey = params?.apiKey || process.env.WAN_API_KEY || process.env.DASHSCOPE_API_KEY || "";
     this.baseUrl = (
       params?.baseUrl ||
@@ -88,7 +92,7 @@ export class WanVideoProvider implements VideoProvider {
       `[WanVideo] Submitting task: model=${this.model}, ratio=${params.ratio}`
     );
 
-    const submitRes = await fetch(
+    const submitRes = await providerFetch("wan", 
       `${this.baseUrl}/services/aigc/video-generation/video-synthesis`,
       {
         method: "POST",
@@ -122,15 +126,15 @@ export class WanVideoProvider implements VideoProvider {
     const videoUrl = await this.pollForResult(taskId);
 
     // Download and persist video
-    const videoRes = await fetch(videoUrl);
+    const videoRes = await mediaFetch(videoUrl);
     if (!videoRes.ok) {
       throw new Error(`WanVideo: failed to download video (${videoRes.status})`);
     }
     const buffer = Buffer.from(await videoRes.arrayBuffer());
     const filename = `${genId()}.mp4`;
-    const dir = path.join(this.uploadDir, "videos");
+    const dir = mediaPath(path.join(this.uploadDir, "videos"), "directory");
     fs.mkdirSync(dir, { recursive: true });
-    const filepath = path.join(dir, filename);
+    const filepath = mediaPath(path.join(dir, filename), "write");
     fs.writeFileSync(filepath, buffer);
 
     console.log(`[WanVideo] Saved to ${filepath}`);
@@ -257,7 +261,7 @@ export class WanVideoProvider implements VideoProvider {
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise((resolve) => setTimeout(resolve, interval));
 
-      const res = await fetch(`${this.baseUrl}/tasks/${taskId}`, {
+      const res = await providerFetch("wan", `${this.baseUrl}/tasks/${taskId}`, {
         headers: { Authorization: `Bearer ${this.apiKey}` },
       });
 

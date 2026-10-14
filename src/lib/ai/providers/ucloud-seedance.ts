@@ -1,3 +1,5 @@
+import { mediaPath } from "@/lib/media-path";
+import { serverProviderConfig, providerFetch, mediaFetch } from "@/lib/provider-security";
 import type { VideoProvider, VideoGenerateParams, VideoGenerateResult } from "../types";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,7 +15,7 @@ function toDataUrl(filePath: string): string {
         : ext === "webp"
           ? "image/webp"
           : "image/png";
-  const base64 = fs.readFileSync(filePath, { encoding: "base64" });
+  const base64 = fs.readFileSync(mediaPath(filePath), { encoding: "base64" });
   return `data:${mime};base64,${base64}`;
 }
 
@@ -46,6 +48,8 @@ export class UCloudSeedanceProvider implements VideoProvider {
     model?: string;
     uploadDir?: string;
   }) {
+    const secure = serverProviderConfig({ protocol: "ucloud-seedance", baseUrl: params?.baseUrl });
+    params = { ...params, baseUrl: secure.baseUrl, apiKey: secure.apiKey };
     this.apiKey = params?.apiKey || "";
     this.baseUrl = (
       params?.baseUrl || "https://api.modelverse.cn"
@@ -63,7 +67,7 @@ export class UCloudSeedanceProvider implements VideoProvider {
       `[UCloudSeedance] Submitting task: model=${this.model}, duration=${(body.parameters as Record<string, unknown>)?.duration}`
     );
 
-    const submitResponse = await fetch(`${this.baseUrl}/v1/tasks/submit`, {
+    const submitResponse = await providerFetch("ucloud-seedance", `${this.baseUrl}/v1/tasks/submit`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -88,12 +92,12 @@ export class UCloudSeedanceProvider implements VideoProvider {
 
     const videoUrl = await this.pollForResult(taskId);
 
-    const videoResponse = await fetch(videoUrl);
+    const videoResponse = await mediaFetch(videoUrl);
     const buffer = Buffer.from(await videoResponse.arrayBuffer());
     const filename = `${genId()}.mp4`;
-    const dir = path.join(this.uploadDir, "videos");
+    const dir = mediaPath(path.join(this.uploadDir, "videos"), "directory");
     fs.mkdirSync(dir, { recursive: true });
-    const filepath = path.join(dir, filename);
+    const filepath = mediaPath(path.join(dir, filename), "write");
     fs.writeFileSync(filepath, buffer);
 
     return { filePath: filepath };
@@ -182,7 +186,7 @@ export class UCloudSeedanceProvider implements VideoProvider {
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise((resolve) => setTimeout(resolve, interval));
 
-      const res = await fetch(
+      const res = await providerFetch("ucloud-seedance", 
         `${this.baseUrl}/v1/tasks/status?task_id=${encodeURIComponent(taskId)}`,
         { headers: { Authorization: this.apiKey } }
       );

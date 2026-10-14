@@ -1,3 +1,4 @@
+import { mediaPath, mediaSegment, StoragePathError } from "@/lib/media-path";
 import ffmpeg from "fluent-ffmpeg";
 import fs from "node:fs";
 import path from "node:path";
@@ -42,15 +43,17 @@ export async function generateTitleCard(
   options?: { fontSize?: number; bgColor?: string; textColor?: string }
 ): Promise<string> {
   const { fontSize = 48, bgColor = "black", textColor = "white" } = options || {};
-  const cardPath = path.resolve(outputDir, `title-${genId()}.mp4`);
+  const cardPath = mediaPath(path.resolve(outputDir, `title-${genId()}.mp4`), "write");
 
+  const textPath = mediaPath(cardPath + ".txt", "write");
+  fs.writeFileSync(textPath, text);
   await new Promise<void>((resolve, reject) => {
     ffmpeg()
       .input(`color=c=${bgColor}:s=1920x1080:d=${duration}`)
       .inputOptions(["-f", "lavfi"])
       .outputOptions([
         "-vf",
-        `drawtext=text='${text.replace(/'/g, "'\\''")}':fontsize=${fontSize}:fontcolor=${textColor}:x=(w-text_w)/2:y=(h-text_h)/2`,
+        `drawtext=textfile=\'${escapeSubtitlePath(textPath)}\':expansion=none:fontsize=${fontSize}:fontcolor=${textColor}:x=(w-text_w)/2:y=(h-text_h)/2`,
         "-c:v", "libx264",
         "-preset", "fast",
         "-crf", "23",
@@ -58,7 +61,7 @@ export async function generateTitleCard(
         "-pix_fmt", "yuv420p",
       ])
       .output(cardPath)
-      .on("end", () => resolve())
+      .on("end", () => { fs.unlinkSync(textPath); resolve(); })
       .on("error", (err) => reject(new Error(`Title card generation failed: ${err.message}`)))
       .run();
   });
@@ -147,16 +150,16 @@ async function concatWithTransitions(
 ): Promise<void> {
   // Single video: just copy
   if (videoPaths.length === 1) {
-    fs.copyFileSync(path.resolve(videoPaths[0]), outputPath);
+    fs.copyFileSync(mediaPath(videoPaths[0]), outputPath);
     return;
   }
 
   // All cuts: use fast concat demuxer
   const allCuts = transitions.every((t) => t === "cut");
   if (allCuts) {
-    const concatListPath = path.resolve(outputDir, `${projectId}-concat.txt`);
+    const concatListPath = mediaPath(path.resolve(outputDir, `${projectId}-concat.txt`), "write");
     const concatContent = videoPaths
-      .map((p) => `file '${path.resolve(p)}'`)
+      .map((p) => `file '${mediaPath(p)}'`)
       .join("\n");
     fs.writeFileSync(concatListPath, concatContent);
 
@@ -181,7 +184,7 @@ async function concatWithTransitions(
   // Mixed transitions: use xfade filter chain
   const cmd = ffmpeg();
   for (const vp of videoPaths) {
-    cmd.input(path.resolve(vp));
+    cmd.input(mediaPath(vp));
   }
 
   // Build xfade filter chain
@@ -236,10 +239,12 @@ async function concatWithTransitions(
 
 export async function assembleVideo(params: AssembleParams): Promise<AssembleResult> {
   const { subtitles, projectId } = params;
-  const allPaths = [...params.videoPaths];
+  mediaSegment(projectId);
+  const allPaths = params.videoPaths.map((value) => mediaPath(value));
+  if (params.bgmPath) params.bgmPath = mediaPath(params.bgmPath);
   const allDurations = [...params.shotDurations];
 
-  const outputDir = path.resolve(uploadDir, "videos");
+  const outputDir = mediaPath(path.resolve(uploadDir, "videos"), "directory");
   fs.mkdirSync(outputDir, { recursive: true });
 
   // Prepend title card if specified
@@ -264,11 +269,14 @@ export async function assembleVideo(params: AssembleParams): Promise<AssembleRes
     allDurations.push(params.creditsCard.duration);
   }
 
+  if (params.transitions?.some((value) => !["cut", "dissolve", "fade_in", "fade_out", "wipeleft", "slideright", "circleopen"].includes(value))) {
+    throw new StoragePathError();
+  }
   const transitions: TransitionType[] = params.transitions
     ?? new Array(Math.max(allPaths.length - 1, 0)).fill("cut");
 
-  const concatOutputPath = path.resolve(outputDir, `${projectId}-concat-${genId()}.mp4`);
-  const outputPath = path.resolve(outputDir, `${projectId}-final-${genId()}.mp4`);
+  const concatOutputPath = mediaPath(path.resolve(outputDir, `${projectId}-concat-${genId()}.mp4`), "write");
+  const outputPath = mediaPath(path.resolve(outputDir, `${projectId}-final-${genId()}.mp4`), "write");
 
   // Step 1: Concatenate video clips (with transitions)
   await concatWithTransitions(allPaths, transitions, allDurations, concatOutputPath, projectId, outputDir);
@@ -313,7 +321,7 @@ export async function assembleVideo(params: AssembleParams): Promise<AssembleRes
   }
 
   // Step 3: Mix background music if provided
-  if (params.bgmPath && fs.existsSync(path.resolve(params.bgmPath))) {
+  if (params.bgmPath && fs.existsSync(mediaPath(params.bgmPath))) {
     const bgmOutputPath = outputPath.replace(/\.mp4$/, `-bgm.mp4`);
     const vol = params.bgmVolume ?? 0.3;
 
@@ -321,7 +329,7 @@ export async function assembleVideo(params: AssembleParams): Promise<AssembleRes
       await new Promise<void>((resolve, reject) => {
         ffmpeg()
           .input(outputPath)
-          .input(path.resolve(params.bgmPath!))
+          .input(mediaPath(params.bgmPath!))
           .outputOptions([
             "-map", "0:v",
             "-map", "1:a",

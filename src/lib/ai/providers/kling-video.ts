@@ -1,3 +1,5 @@
+import { mediaPath } from "@/lib/media-path";
+import { serverProviderConfig, providerFetch, mediaFetch } from "@/lib/provider-security";
 import type { VideoProvider, VideoGenerateParams, VideoGenerateResult } from "../types";
 import fs from "node:fs";
 import path from "node:path";
@@ -37,16 +39,14 @@ interface KlingTaskData {
 function toBase64(filePath: string): string {
   let data: Buffer;
   try {
-    data = fs.readFileSync(filePath);
-  } catch {
-    throw new Error(`Kling: frame file not found: ${filePath}`);
-  }
+    data = fs.readFileSync(mediaPath(filePath));
+  } catch (error) { throw error; }
   return data.toString("base64");
 }
 
 async function toBase64FromPathOrUrl(pathOrUrl: string): Promise<string> {
   if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
-    const res = await fetch(pathOrUrl);
+    const res = await mediaFetch(pathOrUrl);
     if (!res.ok) {
       throw new Error(`Failed to fetch image: ${pathOrUrl} (${res.status})`);
     }
@@ -70,6 +70,8 @@ export class KlingVideoProvider implements VideoProvider {
     model?: string;
     uploadDir?: string;
   }) {
+    const secure = serverProviderConfig({ protocol: "kling", baseUrl: params?.baseUrl });
+    params = { ...params, baseUrl: secure.baseUrl, apiKey: secure.apiKey, secretKey: secure.secretKey };
     this.apiKey = (params?.apiKey || process.env.KLING_ACCESS_KEY || "").trim();
     this.secretKey = (params?.secretKey || process.env.KLING_SECRET_KEY || "").trim();
     this.baseUrl = (params?.baseUrl || "https://api.klingai.com").replace(/\/+$/, "");
@@ -106,7 +108,7 @@ export class KlingVideoProvider implements VideoProvider {
         `[Kling Video] image2video: model=${this.model}, duration=${duration}s, ratio=${aspectRatio}`
       );
 
-      const submitRes = await fetch(`${this.baseUrl}/v1/videos/image2video`, {
+      const submitRes = await providerFetch("kling", `${this.baseUrl}/v1/videos/image2video`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -143,7 +145,7 @@ export class KlingVideoProvider implements VideoProvider {
         `[Kling Video] text2video: model=${this.model}, duration=${duration}s, ratio=${aspectRatio}`
       );
 
-      let submitRes = await fetch(`${this.baseUrl}/v1/videos/text2video`, {
+      let submitRes = await providerFetch("kling", `${this.baseUrl}/v1/videos/text2video`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -162,7 +164,7 @@ export class KlingVideoProvider implements VideoProvider {
       if (submitRes.status === 400 || submitRes.status === 422) {
         const fallbackBody = await submitRes.text().catch(() => "");
         console.warn(`[Kling Video] text2video reference_image rejected (${submitRes.status}: ${fallbackBody}), retrying without ref images`);
-        submitRes = await fetch(`${this.baseUrl}/v1/videos/text2video`, {
+        submitRes = await providerFetch("kling", `${this.baseUrl}/v1/videos/text2video`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -194,12 +196,12 @@ export class KlingVideoProvider implements VideoProvider {
     const videoUrl = await this.pollForResult(taskId, taskType);
 
     // Download video
-    const videoRes = await fetch(videoUrl);
+    const videoRes = await mediaFetch(videoUrl);
     const buffer = Buffer.from(await videoRes.arrayBuffer());
     const filename = `${genId()}.mp4`;
-    const dir = path.join(this.uploadDir, "videos");
+    const dir = mediaPath(path.join(this.uploadDir, "videos"), "directory");
     fs.mkdirSync(dir, { recursive: true });
-    const filepath = path.join(dir, filename);
+    const filepath = mediaPath(path.join(dir, filename), "write");
     fs.writeFileSync(filepath, buffer);
 
     console.log(`[Kling Video] Saved to ${filepath}`);
@@ -215,7 +217,7 @@ export class KlingVideoProvider implements VideoProvider {
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise((resolve) => setTimeout(resolve, 5_000));
 
-      const res = await fetch(
+      const res = await providerFetch("kling", 
         `${this.baseUrl}/v1/videos/${taskType}/${taskId}`,
         { headers: { Authorization: this.getAuthHeader() } }
       );

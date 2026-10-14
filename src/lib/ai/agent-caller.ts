@@ -1,3 +1,4 @@
+import { serverProviderConfig, providerFetch } from "@/lib/provider-security";
 // src/lib/ai/agent-caller.ts
 // Multi-platform agent caller: Bailian, Dify, Coze
 
@@ -35,9 +36,10 @@ async function callBailianAgentStream(
   config: { appId: string; apiKey: string },
   prompt: string,
 ): Promise<ReadableStream<Uint8Array>> {
-  const url = `https://dashscope.aliyuncs.com/api/v1/apps/${config.appId}/completion`;
+  config = { ...config, apiKey: serverProviderConfig({ protocol: "bailian" }).apiKey };
+  const url = `https://dashscope.aliyuncs.com/api/v1/apps/${encodeURIComponent(config.appId)}/completion`;
 
-  const res = await fetch(url, {
+  const res = await providerFetch("bailian", url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -104,10 +106,11 @@ async function callDifyAgentStream(
   config: { appId: string; apiKey: string },
   prompt: string,
 ): Promise<ReadableStream<Uint8Array>> {
+  config = { ...config, apiKey: serverProviderConfig({ protocol: "dify" }).apiKey };
   const baseUrl = config.appId.replace(/\/+$/, "");
   const url = `${baseUrl}/v1/workflows/run`;
 
-  const res = await fetch(url, {
+  const res = await providerFetch("dify", url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -194,9 +197,10 @@ export async function callBailianAgent(
   config: { appId: string; apiKey: string },
   prompt: string,
 ): Promise<string> {
-  const url = `https://dashscope.aliyuncs.com/api/v1/apps/${config.appId}/completion`;
+  config = { ...config, apiKey: serverProviderConfig({ protocol: "bailian" }).apiKey };
+  const url = `https://dashscope.aliyuncs.com/api/v1/apps/${encodeURIComponent(config.appId)}/completion`;
 
-  const res = await fetch(url, {
+  const res = await providerFetch("bailian", url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -259,11 +263,12 @@ async function callDifyAgent(
   config: { appId: string; apiKey: string },
   prompt: string,
 ): Promise<string> {
+  config = { ...config, apiKey: serverProviderConfig({ protocol: "dify" }).apiKey };
   // appId is the Dify base URL (e.g. https://api.dify.ai or self-hosted URL)
   const baseUrl = config.appId.replace(/\/+$/, "");
   const url = `${baseUrl}/v1/workflows/run`;
 
-  const res = await fetch(url, {
+  const res = await providerFetch("dify", url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -322,9 +327,10 @@ async function callCozeAgent(
   config: { appId: string; apiKey: string },
   prompt: string,
 ): Promise<string> {
+  config = { ...config, apiKey: serverProviderConfig({ protocol: "coze" }).apiKey };
   const url = "https://api.coze.cn/v1/workflow/run";
 
-  const res = await fetch(url, {
+  const res = await providerFetch("coze", url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

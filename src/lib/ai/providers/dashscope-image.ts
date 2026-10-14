@@ -1,3 +1,5 @@
+import { mediaPath } from "@/lib/media-path";
+import { serverProviderConfig, providerFetch, mediaFetch } from "@/lib/provider-security";
 import type { AIProvider, TextOptions, ImageOptions } from "../types";
 import fs from "node:fs";
 import path from "node:path";
@@ -103,6 +105,8 @@ export class DashScopeImageProvider implements AIProvider {
     model?: string;
     uploadDir?: string;
   }) {
+    const secure = serverProviderConfig({ protocol: "dashscope", baseUrl: params?.baseUrl });
+    params = { ...params, baseUrl: secure.baseUrl, apiKey: secure.apiKey };
     this.apiKey =
       params?.apiKey || process.env.DASHSCOPE_API_KEY || "";
     this.baseUrl = (
@@ -164,7 +168,7 @@ export class DashScopeImageProvider implements AIProvider {
       `[DashScopeImage] Generating: model=${model}, family=${family}, size=${size}`,
     );
 
-    const res = await fetch(
+    const res = await providerFetch("dashscope", 
       `${this.baseUrl}/services/aigc/multimodal-generation/generation`,
       {
         method: "POST",
@@ -201,7 +205,7 @@ export class DashScopeImageProvider implements AIProvider {
     }
 
     // Download and save to local storage
-    const imageRes = await fetch(imageUrl);
+    const imageRes = await mediaFetch(imageUrl);
     if (!imageRes.ok) {
       throw new Error(
         `DashScope image: failed to download image (${imageRes.status})`,
@@ -210,9 +214,9 @@ export class DashScopeImageProvider implements AIProvider {
     const buffer = Buffer.from(await imageRes.arrayBuffer());
     const ext = imageUrl.split("?")[0].split(".").pop() || "png";
     const filename = `${genId()}.${ext}`;
-    const dir = path.join(this.uploadDir, "images");
+    const dir = mediaPath(path.join(this.uploadDir, "images"), "directory");
     fs.mkdirSync(dir, { recursive: true });
-    const filepath = path.join(dir, filename);
+    const filepath = mediaPath(path.join(dir, filename), "write");
     fs.writeFileSync(filepath, buffer);
 
     console.log(`[DashScopeImage] Saved to ${filepath}`);

@@ -72,8 +72,6 @@ export function CharactersInlinePanel({
     return {
       protocol: provider.protocol,
       baseUrl: provider.baseUrl,
-      apiKey: provider.apiKey,
-      secretKey: provider.secretKey,
       modelId: ref.modelId,
     };
   }

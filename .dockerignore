@@ -5,3 +5,20 @@ data
 uploads
 *.md
 docs
+
+# Private configuration and runtime data
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.sqlite
+*.sqlite3
+*.db
+*.db-*
+data*/
+uploads/
+*.sqlite-*
+*.sqlite3-*

@@ -1,5 +1,5 @@
 使用说明
-其他参数及使用方法和官方一样，只需要将域名从https://ark.cn-beijing.volces.com/api/v3改为http://123.57.80.82/seedance ，key换成我们的key即可。
+其他参数及使用方法和官方一样，只需要将域名从https://ark.cn-beijing.volces.com/api/v3改为https://YOUR_TRUSTED_PROVIDER_HOST/seedance ，key换成我们的key即可。
 注意如果需要生成类真人视频，一定要先提交自定义虚拟人像，获取资产id，然后用资产链接作为参考图链接生成，不要用网络链接。
 模型ID：
 Seedance2.0: doubao-seedance-2-0-260128
@@ -197,7 +197,7 @@ Seedance 2.0 & 2.0 fast  默认值：5
 5. 创建视频生成任务
 以下示例仅展示 Seedance 2.0 & 2.0 fast 新增能力，更多视频生成示例详见 创建视频生成任务 API。
 多模态参考
-curl http://123.57.80.82/seedance/contents/generations/tasks \
+curl https://YOUR_TRUSTED_PROVIDER_HOST/seedance/contents/generations/tasks \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{
@@ -242,7 +242,7 @@ curl http://123.57.80.82/seedance/contents/generations/tasks \
     "watermark": false
 }'
 编辑视频
-curl http://123.57.80.82/seedance/contents/generations/tasks \
+curl https://YOUR_TRUSTED_PROVIDER_HOST/seedance/contents/generations/tasks \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{
@@ -272,7 +272,7 @@ curl http://123.57.80.82/seedance/contents/generations/tasks \
     "duration": 5,
     "watermark": true
 }'延长视频
-curl http://123.57.80.82/seedance/contents/generations/tasks \
+curl https://YOUR_TRUSTED_PROVIDER_HOST/seedance/contents/generations/tasks \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{
@@ -311,7 +311,7 @@ curl http://123.57.80.82/seedance/contents/generations/tasks \
 }'
 使用联网搜索
 仅支持文本生视频
-curl http://123.57.80.82/seedance/contents/generations/tasks \
+curl https://YOUR_TRUSTED_PROVIDER_HOST/seedance/contents/generations/tasks \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{
@@ -334,7 +334,7 @@ curl http://123.57.80.82/seedance/contents/generations/tasks \
 }'
 查询视频生成任务
 //请将 cgt-2026****hzc2z 替换为创建视频生成任务时获得的任务ID
-curl -X GET http://123.57.80.82/seedance/contents/generations/tasks/cgt-2026****hzc2z \
+curl -X GET https://YOUR_TRUSTED_PROVIDER_HOST/seedance/contents/generations/tasks/cgt-2026****hzc2z \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY"   最佳实践-使用公共虚拟人像生成视频
 公共虚拟人像库：
@@ -356,7 +356,7 @@ import time
 # Install SDK:  pip install 'volcengine-python-sdk[ark]'
 from volcenginesdkarkruntime import Ark 
 client = Ark(
-    base_url='http://123.57.80.82/seedance',
+    base_url='https://YOUR_TRUSTED_PROVIDER_HOST/seedance',
     api_key=os.environ.get("API_KEY"),
 )
 if __name__ == "__main__":
@@ -454,7 +454,7 @@ if __name__ == "__main__":
 CreateAsset
 POST /open/CreateAsset
 向指定的Asset Group（素材资产组合）内创建Asset（素材资产）。
-curl -X POST "http://123.57.80.82/seedance/open/CreateAsset" \
+curl -X POST "https://YOUR_TRUSTED_PROVIDER_HOST/seedance/open/CreateAsset" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer API_KEY" \
   -d '{
@@ -488,9 +488,9 @@ Asset（素材资产）的 Id。
 ListAssets
 POST /open/ListAssets
 查询符合筛选条件的Assets（素材资产）列表。
-curl -X POST "http://123.57.80.82/seedance/open/ListAssets" \
+curl -X POST "https://YOUR_TRUSTED_PROVIDER_HOST/seedance/open/ListAssets" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer sk-omei9f28eh4gbIUD928ehf2" \
+  -H "Authorization: Bearer $SEEDANCE_API_KEY" \
   -d '{"PageNumber": 1, "PageSize": 10}'请求参数
 
 Filter object 必填
@@ -577,7 +577,7 @@ PageSize int (i64)
 GetAsset
 POST /open/GetAsset
 获取单个Asset（素材资产）信息。
-curl -X POST "http://123.57.80.82/seedance/open/GetAsset" \
+curl -X POST "https://YOUR_TRUSTED_PROVIDER_HOST/seedance/open/GetAsset" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer API_KEY" \
   -d '{"Id": "asset-2026xxxxxxxxx"}'请求参数

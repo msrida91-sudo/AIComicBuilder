@@ -31,6 +31,30 @@ import time
 import urllib.request
 import urllib.error
 
+
+# Local hardening: no custom remote credential destinations or HTTP redirects.
+from urllib.parse import urlsplit
+from urllib.request import build_opener, HTTPRedirectHandler
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ValueError("HTTP redirects are disabled")
+
+def validate_api_url(url: str) -> str:
+    parsed = urlsplit(url)
+    if parsed.username or parsed.password or parsed.fragment:
+        raise ValueError("Invalid provider URL")
+    loopback = parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+    trusted = parsed.hostname in {"api-beijing.klingai.com", "api.klingai.com"}
+    if loopback and parsed.scheme in {"http", "https"}:
+        return url
+    if parsed.scheme != "https" or not trusted or parsed.port not in {None, 443}:
+        raise ValueError("Untrusted provider URL")
+    return url
+
+def safe_open(request):
+    return build_opener(NoRedirect()).open(request)
+
 # ── JWT Token ────────────────────────────────────────────────────────────────
 
 def _b64url(data: bytes) -> str:
@@ -51,6 +75,7 @@ def to_base64(path: str) -> str:
         return base64.b64encode(f.read()).decode()
 
 def api_request(method: str, url: str, token: str, body: dict | None = None) -> dict:
+    validate_api_url(url)
     data = json.dumps(body).encode() if body else None
     req = urllib.request.Request(
         url,
@@ -62,7 +87,7 @@ def api_request(method: str, url: str, token: str, body: dict | None = None) -> 
         method=method,
     )
     try:
-        with urllib.request.urlopen(req) as resp:
+        with safe_open(req) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         body_text = e.read().decode(errors="replace")
@@ -70,7 +95,10 @@ def api_request(method: str, url: str, token: str, body: dict | None = None) -> 
 
 def download_file(url: str, dest: str) -> None:
     print(f"  Downloading {url} → {dest}")
-    urllib.request.urlretrieve(url, dest)
+    if urlsplit(url).scheme != "https":
+        raise ValueError("Media download requires HTTPS")
+    with safe_open(urllib.request.Request(url)) as response, open(dest, "wb") as output:
+        output.write(response.read())
 
 # ── Core ──────────────────────────────────────────────────────────────────────
 

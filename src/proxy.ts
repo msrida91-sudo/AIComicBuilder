@@ -1,30 +1,39 @@
 import createMiddleware from "next-intl/middleware";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { routing } from "./i18n/routing";
 
-const COOKIE_NAME = "ai_comic_uid";
-
 const intlMiddleware = createMiddleware(routing);
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
+// Also reject browser cross-site requests and DNS rebinding.
+// The listener must still bind only to loopback.
 export default function proxy(request: NextRequest) {
-  const response = intlMiddleware(request);
-
-  // Ensure ai_comic_uid cookie exists before any page renders.
-  // If missing, set a random UUID so server components can query by userId
-  // on the very first request. The client-side FingerprintProvider will
-  // later overwrite this with the real browser fingerprint if needed.
-  if (!request.cookies.get(COOKIE_NAME)) {
-    const uid = crypto.randomUUID().replace(/-/g, "");
-    response.cookies.set(COOKIE_NAME, uid, {
-      maxAge: 365 * 24 * 60 * 60,
-      path: "/",
-      sameSite: "lax",
-    });
+  let host: URL;
+  try {
+    host = new URL("http://" + request.headers.get("host"));
+  } catch {
+    return new NextResponse("Forbidden", { status: 403 });
   }
-
-  return response;
+  if (!LOOPBACK.has(host.hostname) || request.headers.get("sec-fetch-site") === "cross-site") {
+    return new NextResponse("Local single-user access only", { status: 403 });
+  }
+  const origin = request.headers.get("origin");
+  if (origin) {
+    try {
+      const source = new URL(origin);
+      if (!LOOPBACK.has(source.hostname) || source.host !== host.host ||
+          source.protocol !== request.nextUrl.protocol) {
+        return new NextResponse("Forbidden", { status: 403 });
+      }
+    } catch {
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+  }
+  return request.nextUrl.pathname.startsWith("/api/")
+    ? NextResponse.next()
+    : intlMiddleware(request);
 }
 
 export const config = {
-  matcher: ["/((?!api|_next|_vercel|.*\\..*).*)"],
+  matcher: ["/((?!_next|_vercel|.*\\..*).*)", "/api/:path*"],
 };

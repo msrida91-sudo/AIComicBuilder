@@ -1,3 +1,4 @@
+import { serverProviderConfig } from "@/lib/provider-security";
 import { OpenAIProvider } from "./providers/openai";
 import { GeminiProvider } from "./providers/gemini";
 import { SeedanceProvider } from "./providers/seedance";
@@ -13,7 +14,7 @@ import type { AIProvider, VideoProvider } from "./types";
 interface ProviderConfig {
   protocol: string;
   baseUrl: string;
-  apiKey: string;
+  apiKey?: string;
   secretKey?: string;
   modelId: string;
 }
@@ -25,6 +26,7 @@ export interface ModelConfigPayload {
 }
 
 export function createAIProvider(config: ProviderConfig, uploadDir?: string): AIProvider {
+  config = serverProviderConfig(config);
   switch (config.protocol) {
     case "openai":
       return new OpenAIProvider({
@@ -61,6 +63,7 @@ export function createAIProvider(config: ProviderConfig, uploadDir?: string): AI
 }
 
 export function createVideoProvider(config: ProviderConfig, uploadDir?: string): VideoProvider {
+  config = serverProviderConfig(config);
   switch (config.protocol) {
     case "seedance":
       return new SeedanceProvider({

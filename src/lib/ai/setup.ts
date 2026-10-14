@@ -13,7 +13,7 @@ export function initializeProviders() {
       new OpenAIProvider(),
       (uploadDir) => new OpenAIProvider({ ...(uploadDir && { uploadDir }) }),
     );
-  } else if (process.env.GEMINI_API_KEY) {
+  } else if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
     setDefaultAIProvider(
       new GeminiProvider(),
       (uploadDir) => new GeminiProvider({ ...(uploadDir && { uploadDir }) }),

@@ -1,5 +1,7 @@
 # AI Comic Builder
 
+> **This fork: LOCAL SINGLE-USER DEVELOPMENT ONLY.** Read [SECURITY.md](SECURITY.md) before setup. Internet-facing, LAN, multi-user and Docker deployment are not approved for security-hardening-v1. Use a fresh database and no API keys for the next milestone.
+
 
 社区交流：[https://linux.do/](https://linux.do/)
 
@@ -60,80 +62,37 @@ AI 驱动的漫剧生成器 — 从剧本到动画视频的全自动流水线。
 
 ### 环境要求
 
-- Node.js 18+
+- Node.js 22.13+ LTS (use a supported version satisfying the lockfile engine requirements)
 - pnpm
 - FFmpeg（视频合成功能需要）
 
 ### 安装
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile --ignore-scripts
 ```
 
-### 初始化数据库
+### 数据库 / Database
 
-```bash
-pnpm drizzle-kit push
-```
+Startup automatically creates and migrates the local SQLite database. Use a fresh `data/` directory. Do not point this milestone at an existing database; migrations can drop columns. Do not run `drizzle-kit push` for the initial smoke test.
 
 ### 启动
 
 ```bash
-pnpm dev
+pnpm exec next dev --hostname 127.0.0.1
 ```
 
-访问 [http://localhost:3000](http://localhost:3000)
+访问 [http://127.0.0.1:3000](http://127.0.0.1:3000). Do not override the hostname or expose/forward the port.
 
-## Docker 部署
+The initial install above disables dependency build hooks. `better-sqlite3` may require a separately reviewed native build before startup can work. Do not approve dependency builds in bulk. See [SECURITY.md](SECURITY.md).
 
-### 快速启动
+## Docker deployment (outside this milestone)
 
-```bash
-docker run -d \
-  --name ai-comic-builder \
-  -p 3000:3000 \
-  -v ./data:/app/data \
-  -v ./uploads:/app/uploads \
-  --platform linux/amd64 \
-  twwch/aicomicbuilder:latest
-```
-
-启动后在设置页面中配置 AI 模型供应商（OpenAI / Gemini / Seedance）。
-
-### Docker Compose
-
-创建 `docker-compose.yml`：
-
-```yaml
-services:
-  ai-comic-builder:
-    image: twwch/aicomicbuilder:latest
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./data:/app/data
-      - ./uploads:/app/uploads
-    restart: unless-stopped
-```
-
-```bash
-docker compose up -d
-```
-
-### 数据持久化
-
-通过 volume 挂载保持数据：
-
-- `./data` — SQLite 数据库文件
-- `./uploads` — 上传的文件及生成的资源（图片、视频等）
-
-### 手动构建镜像
-
-```bash
-git clone https://github.com/twwch/AIComicBuilder.git
-cd AIComicBuilder
-docker build -t ai-comic-builder .
-```
+Docker/public deployment is **not approved** for this hardened local-development milestone.
+The retained upstream Dockerfile uses a container listener on `0.0.0.0`; it is not the safe local-development configuration.
+Do not run upstream images or publish ports using the old upstream instructions.
+The publishing workflow is retained for reference but cannot execute its publishing job.
+Use only the loopback development setup described above.
 
 ## 生成流水线
 

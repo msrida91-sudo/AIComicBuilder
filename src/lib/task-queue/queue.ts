@@ -1,3 +1,4 @@
+import { withoutCredentials } from "@/lib/safe-responses";
 import { db } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
 import { eq, asc, sql } from "drizzle-orm";
@@ -19,7 +20,7 @@ export async function enqueueTask(params: {
       id,
       type: params.type,
       projectId: params.projectId,
-      payload: params.payload,
+      payload: withoutCredentials(params.payload),
       maxRetries: params.maxRetries ?? 3,
       scheduledAt: params.scheduledAt,
       episodeId: params.episodeId ?? null,

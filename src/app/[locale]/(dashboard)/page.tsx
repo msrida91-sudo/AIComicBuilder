@@ -2,15 +2,14 @@ import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
-import { cookies } from "next/headers";
+import { LOCAL_USER_ID } from "@/lib/local-user";
 import { ProjectCard } from "@/components/project-card";
 import { CreateProjectDialog } from "@/components/create-project-dialog";
 import { Clapperboard } from "lucide-react";
 
 export default async function DashboardPage() {
   const t = await getTranslations("dashboard");
-  const cookieStore = await cookies();
-  const userId = cookieStore.get("ai_comic_uid")?.value ?? "";
+  const userId = LOCAL_USER_ID;
 
   const allProjects = userId
     ? await db

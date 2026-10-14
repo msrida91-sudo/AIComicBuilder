@@ -1,13 +1,15 @@
+import { withStorageErrors } from "@/lib/media-path";
 import { db } from "@/lib/db";
 import { projects, shots, characters } from "@/lib/db/schema";
 import { and, eq, asc } from "drizzle-orm";
 import archiver from "archiver";
 import path from "node:path";
+import { mediaPath } from "@/lib/media-path";
 import fs from "node:fs";
 import { loadShotLegacyViewsBatch } from "@/lib/shot-asset-utils";
 import { getUserIdFromRequest } from "@/lib/get-user-id";
 
-export async function GET(
+async function handleGET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -46,9 +48,9 @@ export async function GET(
 
   // Helper: add file to archive if it exists
   function addFile(srcPath: string, archiveName: string) {
-    const abs = path.resolve(srcPath);
+    const abs = mediaPath(srcPath);
     if (fs.existsSync(abs)) {
-      archive.file(abs, { name: archiveName });
+      archive.append(fs.readFileSync(abs), { name: archiveName });
       return true;
     }
     return false;
@@ -118,3 +120,5 @@ export async function GET(
     },
   });
 }
+
+export const GET = withStorageErrors(handleGET);
