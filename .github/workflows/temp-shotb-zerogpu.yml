@@ -1,0 +1,88 @@
+name: Temp ShotB ZeroGPU benchmark
+
+on:
+  push:
+    branches:
+      - temp-shotb-hf-zerogpu-20261019
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Gradio client
+        run: python -m pip install --upgrade gradio_client
+      - name: Run free Wan 2.2 ZeroGPU generation
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          python - <<'PY'
+          from gradio_client import Client, handle_file
+          from pathlib import Path
+          import shutil, json, os, traceback
+
+          IMAGE = Path('temp_benchmarks/shotb_zerogpu_input.jpg')
+          PROMPT = '''Locked-off cinematic 2D dark fantasy interrogation room. Preserve the exact characters, faces, ages, costumes, cane, chair, table, stone room, amber lantern lighting, framing, and hand-drawn cel-animation look of the source image. Vael, the gaunt middle-aged man on the left, shifts his weight onto the cane before moving, reaches back with his free hand for the chair, briefly hesitates from pain, then begins a slow controlled asymmetric descent toward sitting. His hips move backward and down in an arc, knees flex naturally, torso counterbalances forward, coat and sleeves trail slightly. Serin, the restrained young man at the table, remains mostly still and watches with subtle fear; only tiny eye movement and shallow breathing. Korr, the large bald guard in the rear, remains almost unnaturally still. Very subtle lantern flicker. Camera completely locked: no zoom, pan, shake, or reframing. Restrained acting, grounded weight, stable linework, painterly background, fine cel-shaded character drawing.'''
+
+          client = Client('Upsampler/wan-2-2-14b-image-to-video', verbose=True)
+          print('--- API ---')
+          try:
+              print(client.view_api(return_format='dict'))
+          except Exception:
+              client.view_api()
+
+          args = [handle_file(str(IMAGE)), PROMPT, 4.0, 4, 20261019, False]
+          print('Submitting generation with duration=4.0, steps=4, seed=20261019, randomize_seed=False')
+          try:
+              result = client.predict(*args, fn_index=0)
+          except Exception as first:
+              print('fn_index=0 failed:', repr(first))
+              # Simple Gradio apps often expose the function name as /generate_video.
+              result = client.predict(*args, api_name='/generate_video')
+
+          print('RESULT_REPR:', repr(result))
+          out = result[0] if isinstance(result, (tuple, list)) else result
+          if hasattr(out, 'path'):
+              out = out.path
+          elif isinstance(out, dict):
+              out = out.get('path') or out.get('video') or out.get('url')
+          if not out:
+              raise RuntimeError(f'Could not resolve video path from result: {result!r}')
+          out = Path(str(out))
+          if not out.exists():
+              raise FileNotFoundError(f'Client returned non-local output: {out}')
+          dest = Path('shotb_zero_output.mp4')
+          shutil.copy2(out, dest)
+          print('SAVED:', dest, dest.stat().st_size)
+          Path('shotb_zero_result.json').write_text(json.dumps({
+              'space':'Upsampler/wan-2-2-14b-image-to-video',
+              'duration_seconds':4.0,
+              'steps':4,
+              'seed':20261019,
+              'randomize_seed':False,
+              'raw_result':repr(result),
+          }, indent=2))
+          PY
+      - name: Probe output
+        if: success()
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          ffprobe -v error -show_entries stream=width,height,r_frame_rate,nb_frames,duration -of json shotb_zero_output.mp4 | tee shotb_zero_ffprobe.json
+      - name: Upload benchmark result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shotb-zerogpu-result
+          path: |
+            shotb_zero_output.mp4
+            shotb_zero_result.json
+            shotb_zero_ffprobe.json
+          if-no-files-found: warn
+          retention-days: 1
